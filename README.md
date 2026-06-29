@@ -67,6 +67,8 @@ Workstream Control Agent
 Local execution ledger
 ```
 
+An editable SVG diagram is available at `docs/architecture-work-buddy.svg`. Drag it into Figma to create a shareable design file; import notes are in `docs/figma-import-notes.md`.
+
 ## Multi-Agent System
 
 `app/agent.py` defines the root coordinator. `app/sub_agents.py` defines five ADK specialist agents:
@@ -168,11 +170,21 @@ By default, Work Buddy drafts actions and creates approval records. If you want 
 
 Slack:
 
+```bash
+export SLACK_BOT_TOKEN="xoxb-..."
+```
+
 ```powershell
 $env:SLACK_BOT_TOKEN = "xoxb-..."
 ```
 
 Jira:
+
+```bash
+export JIRA_BASE_URL="https://your-domain.atlassian.net"
+export JIRA_EMAIL="you@example.com"
+export JIRA_API_TOKEN="..."
+```
 
 ```powershell
 $env:JIRA_BASE_URL = "https://your-domain.atlassian.net"
@@ -182,12 +194,25 @@ $env:JIRA_API_TOKEN = "..."
 
 GitHub PR creation:
 
+```bash
+export GITHUB_TOKEN="ghp_..."
+export GITHUB_REPOSITORY="owner/repo"
+```
+
 ```powershell
 $env:GITHUB_TOKEN = "ghp_..."
 $env:GITHUB_REPOSITORY = "owner/repo"
 ```
 
 SMTP email:
+
+```bash
+export SMTP_HOST="smtp.example.com"
+export SMTP_PORT="587"
+export SMTP_USERNAME="you@example.com"
+export SMTP_PASSWORD="..."
+export SMTP_FROM="you@example.com"
+```
 
 ```powershell
 $env:SMTP_HOST = "smtp.example.com"
@@ -223,6 +248,18 @@ ADK documents this model flexibility in its official model docs: [AI Models for 
 
 ### Gemini / Vertex
 
+Linux/macOS:
+
+```bash
+export WORKSTREAM_MODEL_PROVIDER="gemini"
+export WORKSTREAM_MODEL="gemini-flash-latest"
+gcloud auth application-default login
+gcloud config set project YOUR_PROJECT_ID
+agents-cli playground
+```
+
+Windows PowerShell:
+
 ```powershell
 $env:WORKSTREAM_MODEL_PROVIDER = "gemini"
 $env:WORKSTREAM_MODEL = "gemini-flash-latest"
@@ -232,6 +269,17 @@ agents-cli playground
 ```
 
 ### OpenAI
+
+Linux/macOS:
+
+```bash
+export WORKSTREAM_MODEL_PROVIDER="openai"
+export WORKSTREAM_MODEL="gpt-4o-mini"
+export OPENAI_API_KEY="YOUR_OPENAI_API_KEY"
+agents-cli playground
+```
+
+Windows PowerShell:
 
 ```powershell
 $env:WORKSTREAM_MODEL_PROVIDER = "openai"
@@ -243,6 +291,17 @@ agents-cli playground
 The code maps that to `openai/gpt-4o-mini` for LiteLLM.
 
 ### Claude
+
+Linux/macOS:
+
+```bash
+export WORKSTREAM_MODEL_PROVIDER="claude"
+export WORKSTREAM_MODEL="claude-3-5-sonnet-latest"
+export ANTHROPIC_API_KEY="YOUR_ANTHROPIC_API_KEY"
+agents-cli playground
+```
+
+Windows PowerShell:
 
 ```powershell
 $env:WORKSTREAM_MODEL_PROVIDER = "claude"
@@ -257,6 +316,17 @@ The code maps that to `anthropic/claude-3-5-sonnet-latest` for LiteLLM.
 
 Start Ollama separately, then run:
 
+Linux/macOS:
+
+```bash
+export WORKSTREAM_MODEL_PROVIDER="ollama"
+export WORKSTREAM_MODEL="llama3.1"
+export PYTHONUTF8="1"
+agents-cli playground
+```
+
+Windows PowerShell:
+
 ```powershell
 $env:WORKSTREAM_MODEL_PROVIDER = "ollama"
 $env:WORKSTREAM_MODEL = "llama3.1"
@@ -267,6 +337,18 @@ agents-cli playground
 The code maps that to `ollama_chat/llama3.1` for LiteLLM. For reliable agent tools, choose a local model/server that supports tool/function calling.
 
 ### vLLM or OpenAI-Compatible Endpoint
+
+Linux/macOS:
+
+```bash
+export WORKSTREAM_MODEL_PROVIDER="litellm"
+export WORKSTREAM_MODEL="openai/my-served-model"
+export OPENAI_API_BASE="https://your-vllm-endpoint.example.com/v1"
+export OPENAI_API_KEY="YOUR_ENDPOINT_KEY"
+agents-cli playground
+```
+
+Windows PowerShell:
 
 ```powershell
 $env:WORKSTREAM_MODEL_PROVIDER = "litellm"
@@ -285,29 +367,73 @@ Install prerequisites:
 - `agents-cli`
 - Google Cloud SDK if using Gemini/Vertex
 
-Install dependencies:
+Install dependencies on Linux/macOS:
+
+```bash
+agents-cli install
+```
+
+Install dependencies on Windows PowerShell:
 
 ```powershell
 agents-cli install
 ```
 
-Run deterministic tests:
+Run deterministic tests on Linux/macOS:
+
+```bash
+uv run pytest tests/unit tests/integration/test_agent.py
+```
+
+Run deterministic tests on Windows PowerShell:
 
 ```powershell
 uv run pytest tests\unit tests\integration\test_agent.py
 ```
 
-Run lint:
+Run lint on Linux/macOS or Windows:
 
-```powershell
+```bash
 uv run --extra lint ruff check .
 ```
 
 Launch the ADK playground:
 
-```powershell
+```bash
 agents-cli playground
 ```
+
+## Dashboard UI
+
+Work Buddy includes a lightweight web dashboard served by FastAPI at `/ui`.
+
+Run locally on Linux/macOS:
+
+```bash
+uv run uvicorn app.fast_api_app:app --host 0.0.0.0 --port 8000
+```
+
+Run locally on Windows PowerShell:
+
+```powershell
+uv run uvicorn app.fast_api_app:app --host 0.0.0.0 --port 8000
+```
+
+Open:
+
+```text
+http://localhost:8000/ui
+```
+
+The dashboard supports:
+
+- processing work dumps into tasks and memory
+- viewing tasks, approvals, PR drafts, events, and memory
+- drafting Slack/Jira/email approvals
+- approving/rejecting/executing approval records
+- checking connector environment configuration
+
+The ADK chat playground is still available separately through `agents-cli playground`.
 
 ## Demo Flow
 
@@ -375,6 +501,54 @@ Keep v1 local for the capstone MVP. Add deployment after tests and evals pass:
 - Use **Cloud Run** if Slack webhooks, scheduled digests, or background sync become central.
 - Store live API credentials in Secret Manager, not local files.
 - Keep prompt-response logging metadata-only unless sensitive-data policy allows content logging.
+
+## Cloud Run Hosting
+
+The dashboard and backend can be hosted as one Cloud Run service. Full details are in `docs/cloud-run-deploy.md`.
+
+You need to log in before deployment:
+
+```bash
+gcloud auth login
+gcloud auth application-default login
+gcloud config set project YOUR_PROJECT_ID
+```
+
+Enable required APIs:
+
+```bash
+gcloud services enable run.googleapis.com cloudbuild.googleapis.com secretmanager.googleapis.com aiplatform.googleapis.com
+```
+
+Deploy from this repo:
+
+```bash
+gcloud run deploy work-buddy \
+  --source . \
+  --region us-central1 \
+  --allow-unauthenticated \
+  --min-instances 0 \
+  --max-instances 2 \
+  --memory 2Gi \
+  --cpu 1 \
+  --set-env-vars WORKSTREAM_MODEL_PROVIDER=gemini,WORKSTREAM_MODEL=gemini-flash-latest
+```
+
+Get the service URL:
+
+```bash
+gcloud run services describe work-buddy \
+  --region us-central1 \
+  --format 'value(status.url)'
+```
+
+Open the dashboard at:
+
+```text
+https://SERVICE_URL/ui
+```
+
+Cost note: Cloud Run has a monthly free tier for low-traffic services, but model calls, Secret Manager, logs, and network usage can still create charges. Keep `min-instances=0` for the lowest demo cost.
 
 ## Roadmap
 

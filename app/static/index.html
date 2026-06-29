@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Work Buddy</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <aside class="sidebar">
+      <div class="brand">
+        <span class="mark">WB</span>
+        <div>
+          <h1>Work Buddy</h1>
+          <p>Multi-agent workstream control</p>
+        </div>
+      </div>
+      <nav>
+        <button class="nav-item active" data-view="inbox">Inbox</button>
+        <button class="nav-item" data-view="tasks">Tasks</button>
+        <button class="nav-item" data-view="approvals">Approvals</button>
+        <button class="nav-item" data-view="prs">PR Drafts</button>
+        <button class="nav-item" data-view="connectors">Connectors</button>
+        <button class="nav-item" data-view="memory">Memory</button>
+      </nav>
+    </aside>
+
+    <main class="shell">
+      <header class="topbar">
+        <div>
+          <h2 id="view-title">Inbox</h2>
+          <p id="view-subtitle">Paste messy work context and turn it into tracked work.</p>
+        </div>
+        <button id="refresh" class="secondary">Refresh</button>
+      </header>
+
+      <section id="view-inbox" class="view active">
+        <div class="panel">
+          <div class="panel-header">
+            <h3>Work Dump</h3>
+            <span>Meeting notes, Slack threads, email text, Jira text, or freeform context</span>
+          </div>
+          <div class="grid two">
+            <label>
+              Source Type
+              <select id="source-type">
+                <option value="meeting">meeting</option>
+                <option value="slack">slack</option>
+                <option value="email">email</option>
+                <option value="jira">jira</option>
+                <option value="github">github</option>
+                <option value="freeform">freeform</option>
+              </select>
+            </label>
+            <label>
+              Metadata JSON
+              <input id="metadata-json" value='{"source_ref":"demo"}' />
+            </label>
+          </div>
+          <textarea id="source-content">Maya: Please update the onboarding email by Friday.
+Liam: Decision: we will keep the current approval workflow.
+Priya: Blocked waiting on security review.</textarea>
+          <div class="actions">
+            <button id="process-source">Process Source</button>
+            <span id="process-status" class="status"></span>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-header">
+            <h3>Latest Result</h3>
+            <span>Source, extraction, reconciliation, and memory update</span>
+          </div>
+          <pre id="latest-result"></pre>
+        </div>
+      </section>
+
+      <section id="view-tasks" class="view">
+        <div class="panel">
+          <div class="panel-header">
+            <h3>Tracked Tasks</h3>
+            <span>Canonical tasks reconciled from source evidence</span>
+          </div>
+          <div id="tasks-list" class="stack"></div>
+        </div>
+      </section>
+
+      <section id="view-approvals" class="view">
+        <div class="panel">
+          <div class="panel-header">
+            <h3>Approval Gate</h3>
+            <span>External writes require explicit human approval</span>
+          </div>
+          <div class="grid three">
+            <label>
+              Channel / Issue / Recipient
+              <input id="draft-target" value="#release" />
+            </label>
+            <label>
+              Draft Type
+              <select id="draft-type">
+                <option value="slack">slack</option>
+                <option value="jira">jira</option>
+                <option value="email">email</option>
+              </select>
+            </label>
+            <label>
+              Subject
+              <input id="draft-subject" value="Workstream update" />
+            </label>
+          </div>
+          <textarea id="draft-message">The approval workflow is ready for review.</textarea>
+          <div class="actions">
+            <button id="create-draft">Create Approval Draft</button>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-header">
+            <h3>Pending Approvals</h3>
+            <span>Approve, reject, or execute approved actions</span>
+          </div>
+          <div id="approvals-list" class="stack"></div>
+        </div>
+      </section>
+
+      <section id="view-prs" class="view">
+        <div class="panel">
+          <div class="panel-header">
+            <h3>PR Draft</h3>
+            <span>Create GitHub-ready PR copy without opening a live PR</span>
+          </div>
+          <div class="grid two">
+            <label>
+              Task ID
+              <input id="pr-task-id" value="TASK-001" />
+            </label>
+            <label>
+              Repo Path
+              <input id="repo-path" value="." />
+            </label>
+          </div>
+          <div class="actions">
+            <button id="create-pr">Draft PR</button>
+            <button id="inspect-repo" class="secondary">Inspect Repo</button>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-header">
+            <h3>PR Drafts</h3>
+            <span>Stored under the local ledger</span>
+          </div>
+          <div id="prs-list" class="stack"></div>
+        </div>
+      </section>
+
+      <section id="view-connectors" class="view">
+        <div class="panel">
+          <div class="panel-header">
+            <h3>Connector Status</h3>
+            <span>Environment-backed credentials; use Secret Manager in production</span>
+          </div>
+          <div id="connectors-list" class="connector-grid"></div>
+        </div>
+        <div class="panel">
+          <div class="panel-header">
+            <h3>Required Variables</h3>
+            <span>Set these locally or map them from Google Secret Manager</span>
+          </div>
+          <pre>SLACK_BOT_TOKEN
+JIRA_BASE_URL, JIRA_EMAIL, JIRA_API_TOKEN
+GITHUB_TOKEN, GITHUB_REPOSITORY
+SMTP_HOST, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD, SMTP_FROM</pre>
+        </div>
+      </section>
+
+      <section id="view-memory" class="view">
+        <div class="panel">
+          <div class="panel-header">
+            <h3>Project Memory</h3>
+            <span>Durable summary generated from sourced events</span>
+          </div>
+          <pre id="memory-view"></pre>
+        </div>
+        <div class="panel">
+          <div class="panel-header">
+            <h3>Recent Events</h3>
+            <span>Append-only audit history</span>
+          </div>
+          <div id="events-list" class="stack"></div>
+        </div>
+      </section>
+    </main>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>
