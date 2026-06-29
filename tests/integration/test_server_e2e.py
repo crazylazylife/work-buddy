@@ -22,8 +22,10 @@ import time
 from collections.abc import Iterator
 from typing import Any
 
+import google.auth
 import pytest
 import requests
+from google.auth.exceptions import DefaultCredentialsError
 from requests.exceptions import RequestException
 
 # Configure logging
@@ -114,6 +116,11 @@ def server_fixture(request: Any) -> Iterator[subprocess.Popen[str]]:
 
 def test_chat_stream(server_fixture: subprocess.Popen[str]) -> None:
     """Test the chat stream functionality."""
+    try:
+        google.auth.default()
+    except DefaultCredentialsError:
+        pytest.skip("Google Application Default Credentials are required for live Gemini chat tests.")
+
     logger.info("Starting chat stream test")
     # Create session first
     user_id = "test_user_123"
