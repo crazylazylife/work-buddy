@@ -365,6 +365,50 @@ def create_approval(action_type: str, target_system: str, payload_json: str, ris
     return approval
 
 
+def load_approval(approval_id: str) -> dict[str, Any]:
+    approval = read_json(LEDGER_ROOT / "approvals" / f"{approval_id}.json")
+    if not approval:
+        raise ValueError(f"Unknown approval_id: {approval_id}")
+    return approval
+
+
+def record_approval_decision(
+    approval_id: str,
+    decision: str,
+    approved_by: str,
+    human_confirmation: str,
+) -> dict[str, Any]:
+    approval = load_approval(approval_id)
+    normalized = decision.strip().lower()
+    if normalized not in {"approved", "rejected"}:
+        raise ValueError("decision must be approved or rejected")
+    if normalized == "approved" and human_confirmation != "I approve this external action":
+        raise ValueError("approval requires exact human_confirmation: I approve this external action")
+
+    approval["status"] = normalized
+    approval["approved_by"] = approved_by
+    approval["decided_at"] = utc_now()
+    write_json(LEDGER_ROOT / "approvals" / f"{approval_id}.json", approval)
+    append_event(
+        "approval_decision_recorded",
+        {"approval_id": approval_id, "decision": normalized, "approved_by": approved_by},
+    )
+    return approval
+
+
+def record_approval_execution(approval_id: str, execution_result: dict[str, Any]) -> dict[str, Any]:
+    approval = load_approval(approval_id)
+    approval["execution_result"] = execution_result
+    approval["executed_at"] = utc_now()
+    approval["status"] = "executed" if execution_result.get("ok") else "execution_failed"
+    write_json(LEDGER_ROOT / "approvals" / f"{approval_id}.json", approval)
+    append_event(
+        "approved_action_execution_recorded",
+        {"approval_id": approval_id, "ok": bool(execution_result.get("ok"))},
+    )
+    return approval
+
+
 def draft_pr(task_id: str, repo_path: str = ".") -> dict[str, Any]:
     task = read_json(LEDGER_ROOT / "tasks" / f"{task_id}.json")
     if not task:

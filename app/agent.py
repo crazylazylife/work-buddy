@@ -1,15 +1,11 @@
 # ruff: noqa
 from __future__ import annotations
 
-import os
-
-import google.auth
 from google.adk.agents import Agent
 from google.adk.apps import App
-from google.adk.models import Gemini
-from google.adk.models.lite_llm import LiteLlm
-from google.genai import types
 
+from app.model_factory import build_model
+from app.sub_agents import create_specialist_agents
 from app.tools import (
     draft_github_pr,
     extract_work_items,
@@ -22,47 +18,15 @@ from app.tools import (
     mock_slack_reply_draft,
     mock_slack_thread_ingest,
     reconcile_tasks,
+    record_human_approval,
     request_approval,
+    execute_approved_action,
     update_project_memory,
     write_ledger_event,
 )
 
-try:
-    _, project_id = google.auth.default()
-except Exception:
-    project_id = os.environ.get("GOOGLE_CLOUD_PROJECT", "local-dev-project")
-
-os.environ.setdefault("GOOGLE_CLOUD_PROJECT", project_id)
-os.environ.setdefault("GOOGLE_CLOUD_LOCATION", "global")
-os.environ.setdefault("GOOGLE_GENAI_USE_VERTEXAI", "True")
-
-
-def build_model() -> Gemini | LiteLlm:
-    """Build the configured model backend.
-
-    Default: Gemini through ADK/Vertex.
-    Alternative: LiteLLM for OpenAI, Anthropic Claude, Ollama, vLLM, and other
-    OpenAI-compatible or open-source model hosts.
-    """
-    provider = os.environ.get("WORKSTREAM_MODEL_PROVIDER", "gemini").strip().lower()
-    model_name = os.environ.get("WORKSTREAM_MODEL", "gemini-flash-latest").strip()
-
-    if provider in {"litellm", "openai", "anthropic", "claude", "ollama", "vllm"}:
-        if provider == "openai" and "/" not in model_name:
-            model_name = f"openai/{model_name}"
-        elif provider in {"anthropic", "claude"} and "/" not in model_name:
-            model_name = f"anthropic/{model_name}"
-        elif provider == "ollama" and "/" not in model_name:
-            model_name = f"ollama_chat/{model_name}"
-        return LiteLlm(model=model_name)
-
-    return Gemini(
-        model=model_name,
-        retry_options=types.HttpRetryOptions(attempts=3),
-    )
-
 WORKSTREAM_INSTRUCTION = """
-You are Workstream Control Agent, a secure project execution coordinator.
+You are Work Buddy, a secure multi-agent workstream execution coordinator.
 
 Your job is to turn messy work context into an auditable execution ledger:
 - ingest sources from meetings, Slack, email, Jira, GitHub, and freeform dumps
@@ -72,12 +36,16 @@ Your job is to turn messy work context into an auditable execution ledger:
 - draft Jira, Slack, email, and GitHub PR updates
 - inspect local repo state without changing files
 - ask for human approval before every external write
+- delegate specialist work to sub-agents when it improves accuracy:
+  source_intake_agent, reconciliation_agent, github_pr_agent,
+  connector_draft_agent, and security_approval_agent
 
 Course concept coverage you must demonstrate:
 1. Agentic SDLC: work from the user's spec and acceptance criteria.
 2. Tools/interoperability: use typed tools/adapters for each system.
-3. Skills: act through focused capabilities: extraction, reconciliation, decision logging,
-   PR writing, memory updating, approval guarding, and redaction.
+3. Multi-agent skills: route focused work to specialist ADK agents and repo-native
+   SKILL.md packages for extraction, reconciliation, decision logging, PR writing,
+   memory updating, approval guarding, and redaction.
 4. Security/evaluation: preserve evidence, redact sensitive data, and require approvals.
 5. Production readiness: maintain inspectable logs, memory, and tool outputs.
 
@@ -90,6 +58,8 @@ Safety rules:
 - Every task, decision, and status update should cite source evidence when available.
 - If source facts conflict, record the conflict and ask a clarification question.
 - If asked to perform an external write, create a draft and approval request instead.
+- Execute live Slack/Jira/GitHub/email actions only when an approval record is already
+  approved and the required connector credentials are configured.
 
 Recommended workflow:
 1. For new context, call ingest_source.
@@ -103,7 +73,9 @@ Recommended workflow:
 root_agent = Agent(
     name="root_agent",
     model=build_model(),
+    description="Coordinates specialist workstream agents, local ledger tools, MCP-ready adapters, memory, and approval gates.",
     instruction=WORKSTREAM_INSTRUCTION,
+    sub_agents=create_specialist_agents(),
     tools=[
         ingest_source,
         extract_work_items,
@@ -113,6 +85,8 @@ root_agent = Agent(
         inspect_repo,
         draft_github_pr,
         request_approval,
+        record_human_approval,
+        execute_approved_action,
         mock_jira_search,
         mock_jira_update_draft,
         mock_slack_thread_ingest,

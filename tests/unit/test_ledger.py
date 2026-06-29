@@ -42,6 +42,36 @@ def test_external_write_creates_pending_approval(tmp_path, monkeypatch) -> None:
     assert approval["payload_preview"]["recipient"] == "person@example.com"
 
 
+def test_approved_action_requires_exact_human_confirmation(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(ledger, "LEDGER_ROOT", tmp_path / "ledger")
+    approval = ledger.create_approval(
+        "post_slack_message",
+        "slack",
+        '{"channel": "#release", "message": "Ready for review"}',
+        "medium",
+    )
+
+    try:
+        ledger.record_approval_decision(
+            approval["id"],
+            "approved",
+            "reviewer@example.com",
+            "approve",
+        )
+    except ValueError as exc:
+        assert "exact human_confirmation" in str(exc)
+    else:
+        raise AssertionError("Expected missing exact confirmation to fail")
+
+    updated = ledger.record_approval_decision(
+        approval["id"],
+        "approved",
+        "reviewer@example.com",
+        "I approve this external action",
+    )
+    assert updated["status"] == "approved"
+
+
 def test_draft_pr_links_back_to_task(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(ledger, "LEDGER_ROOT", tmp_path / "ledger")
     source = ledger.store_source("Action: create approval gate before Slack posts.", "freeform", "{}")

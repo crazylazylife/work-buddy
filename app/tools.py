@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 
 from app import ledger
+from app.live_connectors import execute_approved_action as execute_live_approved_action
 
 
 def ingest_source(content: str, source_type: str = "freeform", metadata_json: str = "{}") -> dict:
@@ -59,6 +60,26 @@ def draft_github_pr(task_id: str, repo_path: str = ".") -> dict:
 def request_approval(action_type: str, target_system: str, payload_json: str, risk_level: str = "medium") -> dict:
     """Create a human approval request for an external write or risky status update."""
     return ledger.create_approval(action_type, target_system, payload_json, risk_level)
+
+
+def record_human_approval(approval_id: str, decision: str, approved_by: str, human_confirmation: str) -> dict:
+    """Record a human approval or rejection decision.
+
+    Args:
+        approval_id: The approval id to update.
+        decision: Either approved or rejected.
+        approved_by: Human reviewer identifier.
+        human_confirmation: Must be exactly 'I approve this external action' for approvals.
+
+    Returns:
+        Updated approval record.
+    """
+    return ledger.record_approval_decision(approval_id, decision, approved_by, human_confirmation)
+
+
+def execute_approved_action(approval_id: str) -> dict:
+    """Execute a live external action only after its approval record is approved."""
+    return execute_live_approved_action(approval_id)
 
 
 def mock_jira_search(query: str) -> dict:

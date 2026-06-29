@@ -55,6 +55,7 @@ coverage.xml
 *.py,cover
 .hypothesis/
 .pytest_cache/
+.uv-cache/
 
 # Translations
 *.mo
@@ -199,6 +200,7 @@ my_env.tfvars
 .env
 .requirements.txt
 .google-agents-cli/
+ledger/
 
 # A2A Inspector
 tools/a2a-inspector/

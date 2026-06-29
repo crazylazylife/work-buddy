@@ -1,6 +1,6 @@
 # Work Buddy: Workstream Control Agent
 
-Work Buddy is an ADK-based agent that turns messy project context into an auditable execution ledger. It coordinates meeting transcripts, Slack/email/Jira-style dumps, local repo state, and GitHub PR workflows without pretending that a summary is the same thing as execution.
+Work Buddy is an ADK-based multi-agent system that turns messy project context into an auditable execution ledger. It coordinates meeting transcripts, Slack/email/Jira-style dumps, local repo state, and GitHub PR workflows without pretending that a summary is the same thing as execution.
 
 The core artifact is a local ledger that answers:
 
@@ -25,17 +25,17 @@ The core artifact is a local ledger that answers:
 
 ## What It Does Not Do Yet
 
-- It does not connect to live Jira, Slack, Gmail, or GitHub APIs in v1.
-- It does not send messages, update tickets, push branches, open PRs, or merge PRs.
+- Live Jira, Slack, SMTP email, and GitHub PR execution are optional and credential-gated.
+- It does not push branches or merge PRs.
 - It does not mark work as done/merged/shipped/deployed unless tool evidence exists.
 
-Those live integrations are intentionally v2 work. The capstone MVP focuses on safe agentic coordination, inspectable memory, approvals, and evaluation.
+The default capstone path still uses mocks/drafts. Live connector execution requires configured credentials and an approved ledger record.
 
 ## Course Concept Coverage
 
 - **Day 1: Agentic SDLC + vibe coding** - behavior is captured in `.agents-cli-spec.md`, then implemented as an ADK prototype.
-- **Day 2: Tools + interoperability** - each external system is modeled as a typed adapter/tool; mocks can later become MCP servers or live API connectors.
-- **Day 3: Skills** - the agent instruction routes through focused capabilities: extraction, reconciliation, decision logging, PR writing, memory updating, approval guarding, and redaction.
+- **Day 2: Tools + interoperability** - each external system is modeled as a typed adapter/tool; the same tools are exposed through a local stdio MCP server.
+- **Day 3: Multi-agent systems + skills** - the coordinator delegates to specialist ADK sub-agents and repo-native `SKILL.md` packages document the reusable capabilities.
 - **Day 4: Security + evaluation** - external writes are approval-gated, evidence is preserved, and evals check safety-sensitive behavior.
 - **Day 5: Production-grade development** - scaffolded with Agents CLI, includes a spec, tests, eval cases, and a deployment path.
 
@@ -46,6 +46,13 @@ User / ADK Playground
         |
         v
 Workstream Control Agent
+        |
+        +-- ADK specialist sub-agents
+        |     +-- source_intake_agent
+        |     +-- reconciliation_agent
+        |     +-- github_pr_agent
+        |     +-- connector_draft_agent
+        |     +-- security_approval_agent
         |
         +-- Source ingestion tools
         +-- Task / decision / blocker extraction
@@ -60,12 +67,66 @@ Workstream Control Agent
 Local execution ledger
 ```
 
+## Multi-Agent System
+
+`app/agent.py` defines the root coordinator. `app/sub_agents.py` defines five ADK specialist agents:
+
+- `source_intake_agent` - ingests meeting, Slack, email, Jira, GitHub, and freeform sources, then extracts work items.
+- `reconciliation_agent` - reconciles duplicate candidates, records conflicts, and updates project memory.
+- `github_pr_agent` - inspects local repo state and drafts GitHub PR artifacts.
+- `connector_draft_agent` - drafts Jira, Slack, and email updates through mock adapters.
+- `security_approval_agent` - enforces approval policy and blocks unsafe external writes.
+
+The coordinator can call tools directly or delegate focused work to these specialists.
+
+## MCP Server
+
+The project includes a dependency-free local stdio MCP server in `app/mcp_server.py`. It exposes the ledger and connector tools through MCP-style `tools/list` and `tools/call` methods.
+
+Run it locally:
+
+```powershell
+python -m app.mcp_server
+```
+
+Example MCP request:
+
+```json
+{"jsonrpc":"2.0","id":1,"method":"tools/list"}
+```
+
+Example tool call:
+
+```json
+{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"ingest_source","arguments":{"content":"Action: draft the release PR.","source_type":"freeform","metadata_json":"{}"}}}
+```
+
+This gives the capstone a real MCP-compatible bridge while keeping live Jira/Slack/GitHub credentials out of v1.
+
+## Agent Skills
+
+Reusable skills live under `skills/`:
+
+- `meeting_task_extractor`
+- `cross_source_reconciler`
+- `decision_logger`
+- `github_pr_writer`
+- `memory_updater`
+- `approval_guard`
+- `security_redactor`
+
+Each skill has a `SKILL.md` with when-to-use guidance, expected inputs, tool flow, and safety rules. The ADK sub-agents implement these capabilities in code.
+
 Key files:
 
 - `.agents-cli-spec.md` - product/spec source of truth.
 - `app/agent.py` - ADK agent definition, model selection, instructions, tool wiring.
+- `app/sub_agents.py` - ADK specialist sub-agents.
+- `app/mcp_server.py` - local stdio MCP server for ledger/connectors.
+- `app/live_connectors.py` - optional Slack/Jira/GitHub/SMTP execution after approval.
 - `app/tools.py` - typed agent tools and mock adapters.
 - `app/ledger.py` - local ledger, task reconciliation, memory, PR drafts, approvals, redaction.
+- `skills/*/SKILL.md` - reusable agent skills from the course.
 - `tests/unit/test_ledger.py` - deterministic business-logic tests.
 - `tests/eval/datasets/basic-dataset.json` - capstone eval prompts.
 - `tests/eval/eval_config.yaml` - quality, evidence, and approval-gate eval metrics.
@@ -88,6 +149,8 @@ ledger/
 
 The ledger is local by default so a capstone reviewer can inspect exactly what the agent did.
 
+Generated `ledger/` contents are ignored by Git. Commit curated demo ledger examples separately if needed.
+
 ## Permissions Model
 
 The v1 policy is conservative:
@@ -95,8 +158,53 @@ The v1 policy is conservative:
 - Local ledger and memory updates are allowed.
 - Drafting Jira, Slack, email, and GitHub artifacts is allowed.
 - Posting Slack, sending email, updating Jira, pushing branches, opening PRs, merging PRs, or marking external work complete requires a `request_approval` record.
+- Optional live execution requires `record_human_approval` with the exact confirmation phrase, then `execute_approved_action`.
 - The agent must cite source evidence for task and status changes when available.
 - The agent must record conflicts instead of silently choosing between inconsistent facts.
+
+## Optional Live Connectors
+
+By default, Work Buddy drafts actions and creates approval records. If you want to test live execution, configure the relevant environment variables and approve the action first.
+
+Slack:
+
+```powershell
+$env:SLACK_BOT_TOKEN = "xoxb-..."
+```
+
+Jira:
+
+```powershell
+$env:JIRA_BASE_URL = "https://your-domain.atlassian.net"
+$env:JIRA_EMAIL = "you@example.com"
+$env:JIRA_API_TOKEN = "..."
+```
+
+GitHub PR creation:
+
+```powershell
+$env:GITHUB_TOKEN = "ghp_..."
+$env:GITHUB_REPOSITORY = "owner/repo"
+```
+
+SMTP email:
+
+```powershell
+$env:SMTP_HOST = "smtp.example.com"
+$env:SMTP_PORT = "587"
+$env:SMTP_USERNAME = "you@example.com"
+$env:SMTP_PASSWORD = "..."
+$env:SMTP_FROM = "you@example.com"
+```
+
+Approval flow:
+
+1. Draft action with a mock connector or `request_approval`.
+2. Record approval with `record_human_approval`.
+3. The confirmation phrase must be exactly `I approve this external action`.
+4. Execute with `execute_approved_action`.
+
+If credentials are missing, execution records `not_configured` rather than silently pretending it succeeded.
 
 ## Model Support
 
